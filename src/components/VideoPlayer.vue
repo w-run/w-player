@@ -9,17 +9,21 @@
       ref="videoElement"
       class="video-element"
       :src="store.videoUrl"
+      preload="auto"
       @timeupdate="handleTimeUpdate"
       @loadedmetadata="handleLoadedMetadata"
+      @loadeddata="handleLoadedData"
       @play="handlePlay"
       @pause="handlePause"
+      @ended="handleVideoEnded"
+      @progress="handleBufferProgress"
       @click="handleVideoClick"
     ></video>
 
-    <div class="big-play-button" v-if="!store.isPlaying" @click="store.togglePlay">
-      <svg width="68" height="48" viewBox="0 0 68 48">
-        <path class="play-button-bg" d="M66.52,7.74c-0.78-2.93-2.49-5.41-5.42-6.19C55.79,.13,34,0,34,0S12.21,.13,6.9,1.55 C3.97,2.33,2.27,4.81,1.48,7.74C0.06,13.05,0,24,0,24s0.06,10.95,1.48,16.26c0.78,2.93,2.49,5.41,5.42,6.19 ,12.21,1.42,27.1,1.55,27.1,1.55s11.79-0.13,17.1-1.55c2.93-0.78,4.64-3.26,5.42-6.19C67.94,34.95,68,24,68,24S67.94,13.05,66.52,7.74z"></path>
-        <path d="M 45,24 27,14 27,34" fill="white"></path>
+    <div class="big-play-button" v-if="!store.isPlaying" @click="handleBigPlayClick">
+      <svg width="80" height="80" viewBox="0 0 100 100">
+        <circle class="play-button-bg" cx="50" cy="50" r="46"/>
+        <polygon class="play-button-icon" points="38,28 38,72 72,50"/>
       </svg>
     </div>
 
@@ -29,7 +33,7 @@
     >
       <div class="progress-bar-wrapper" @click="handleProgressClick">
         <div class="progress-bar">
-          <div class="progress-buffered"></div>
+          <div class="progress-buffered" :style="{ width: store.buffered + '%' }"></div>
           <div class="progress-played" :style="{ width: store.progress + '%' }"></div>
           <div class="progress-handle" :style="{ left: store.progress + '%' }"></div>
         </div>
@@ -37,7 +41,7 @@
 
       <div class="controls-bar">
         <div class="controls-left">
-          <button class="control-btn" @click="store.togglePlay">
+          <button class="control-btn" @click="handleVideoClick">
             <svg v-if="!store.isPlaying" viewBox="0 0 24 24" width="24" height="24">
               <path d="M8 5v14l11-7z" fill="white"></path>
             </svg>
@@ -75,6 +79,33 @@
         </div>
 
         <div class="controls-right">
+          <button class="control-btn" @click="store.cycleLoopMode" :title="loopModeLabel">
+            <svg v-if="store.loopMode === 'stop'" viewBox="0 0 24 24" width="22" height="22">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="white"/>
+              <path d="M11 9l4 3-4 3V9z" fill="white"/>
+            </svg>
+            <svg v-else-if="store.loopMode === 'single'" viewBox="0 0 24 24" width="22" height="22">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="white"/>
+              <path d="M12 7v10l4-5-4-5z" fill="white"/>
+              <circle cx="12" cy="12" r="1" fill="white"/>
+            </svg>
+            <svg v-else-if="store.loopMode === 'list'" viewBox="0 0 24 24" width="22" height="22">
+              <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" fill="white"/>
+            </svg>
+            <svg v-else-if="store.loopMode === 'cycle'" viewBox="0 0 24 24" width="22" height="22">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-2v-2h2v2zm-10 0v-2h2v2H7zm5 5c-3.31 0-6-2.69-6-6h2c0 2.21 1.79 4 4 4s4-1.79 4-4h2c0 3.31-2.69 6-6 6z" fill="white"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" width="22" height="22">
+              <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" fill="white"/>
+            </svg>
+          </button>
+
+          <button class="control-btn" @click="store.togglePlaylist" :title="store.showPlaylist ? '关闭播放列表' : '播放列表'">
+            <svg viewBox="0 0 24 24" width="22" height="22">
+              <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h12v2H3v-2zm15-3l5 4-5 4v-8z" fill="white"/>
+            </svg>
+          </button>
+
           <button class="control-btn" @click="toggleFullscreen">
             <svg v-if="!store.isFullscreen" viewBox="0 0 24 24" width="24" height="24">
               <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="white"></path>
@@ -90,12 +121,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { usePlayerStore } from '../stores/playerStore'
 
 const store = usePlayerStore()
 const videoElement = ref(null)
 const playerContainer = ref(null)
+
+const loopModeLabel = computed(() => {
+  const labels = {
+    stop: '自动停止',
+    single: '单曲循环',
+    list: '列表顺序播放',
+    cycle: '列表循环',
+    shuffle: '随机播放'
+  }
+  return labels[store.loopMode] || '自动停止'
+})
 
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60)
@@ -112,6 +154,14 @@ function handleTimeUpdate() {
 function handleLoadedMetadata() {
   if (videoElement.value) {
     store.setDuration(videoElement.value.duration)
+    store.syncCurrentToPlaylist()
+  }
+}
+
+function handleLoadedData() {
+  if (videoElement.value) {
+    store.setDuration(videoElement.value.duration)
+    store.syncCurrentToPlaylist()
   }
 }
 
@@ -133,6 +183,29 @@ function handleVideoClick() {
     } else {
       videoElement.value.pause()
     }
+  }
+}
+
+function handleBigPlayClick() {
+  if (videoElement.value) {
+    store.setPlaying(true)
+    videoElement.value.play()
+    store.resetControlsTimer()
+  }
+}
+
+function handleBufferProgress() {
+  if (videoElement.value && videoElement.value.buffered.length > 0) {
+    const bufferedEnd = videoElement.value.buffered.end(videoElement.value.buffered.length - 1)
+    store.setBuffered((bufferedEnd / store.duration) * 100)
+  }
+}
+
+function handleVideoEnded() {
+  store.setPlaying(false)
+  store.showControlsPermanently()
+  if (videoElement.value) {
+    videoElement.value.currentTime = 0
   }
 }
 
@@ -174,6 +247,10 @@ function toggleFullscreen() {
 }
 
 onMounted(() => {
+  if (videoElement.value && videoElement.value.readyState >= 1) {
+    store.setDuration(videoElement.value.duration)
+    store.syncCurrentToPlaylist()
+  }
   const handleKeyDown = (e) => {
     if (!videoElement.value) return
     switch (e.code) {
@@ -235,16 +312,27 @@ onMounted(() => {
   transform: translate(-50%, -50%);
   cursor: pointer;
   z-index: 10;
+  transition: transform 0.15s ease;
+}
+
+.big-play-button:hover {
+  transform: translate(-50%, -50%) scale(1.08);
 }
 
 .big-play-button .play-button-bg {
-  fill: #212121;
-  fill-opacity: 0.8;
+  fill: rgba(0, 0, 0, 0.65);
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-width: 1.5;
+  transition: fill 0.2s;
 }
 
 .big-play-button:hover .play-button-bg {
-  fill: #ff0000;
-  fill-opacity: 1;
+  fill: #D62839;
+  stroke: #D62839;
+}
+
+.big-play-button .play-button-icon {
+  fill: white;
 }
 
 .controls-overlay {
@@ -279,7 +367,7 @@ onMounted(() => {
   top: 0;
   left: 0;
   height: 100%;
-  background-color: rgba(255, 255, 255, 0.4);
+  background-color: rgba(214, 40, 57, 0.3);
 }
 
 .progress-played {
@@ -287,7 +375,8 @@ onMounted(() => {
   top: 0;
   left: 0;
   height: 100%;
-  background-color: #ff0000;
+  background-color: #D62839;
+  transition: width 0.1s linear;
 }
 
 .progress-handle {
@@ -296,10 +385,10 @@ onMounted(() => {
   transform: translate(-50%, -50%);
   width: 12px;
   height: 12px;
-  background-color: #ff0000;
+  background-color: #D62839;
   border-radius: 50%;
   opacity: 0;
-  transition: opacity 0.1s;
+  transition: left 0.1s linear, opacity 0.1s;
 }
 
 .progress-bar-wrapper:hover .progress-handle {
